@@ -218,7 +218,7 @@ Tabs.Main:CreateDropdown("Dropdown", {
     Title = "Tokens",
     Values = getgenv().ScriptHive.tokens.names,
     Multi = true,
-    Default = nil,
+    Default = {},
     Callback = function(selectedTable)
 
         table.clear(getgenv().ScriptHive.selectedDecals)
