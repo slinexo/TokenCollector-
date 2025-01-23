@@ -1,0 +1,242 @@
+
+-------------- // SCRIPTHIVE // --------------
+------------ // TOKEN COLLECTOR // -----------
+
+repeat 
+    task.wait() 
+until 
+    game:IsLoaded() 
+    and game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ScreenGui") 
+    and game:GetService("Players").LocalPlayer.PlayerGui.ScreenGui.LoadingMessage.Visible == false
+
+-- // Services
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- // Fluent UI
+local Library = loadstring(game:HttpGetAsync("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
+local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
+local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
+
+-- // ScriptHive table
+local ScriptHive = {}
+
+-------------- // FUNCTIONS // --------------
+
+ScriptHive["humanoidrootpart"] = function()
+    return LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+end
+
+local noclipConnection = nil
+ScriptHive["noclip"] = function(state)
+    if state then
+        if not noclipConnection then
+            noclipConnection = RunService.Stepped:Connect(function()
+                local char = LocalPlayer.Character
+                if char then
+                    for _, part in ipairs(char:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end)
+        end
+    else
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+    end
+end
+
+-------------- // TWEENING // --------------
+
+local tokenPositionsQueue = {}
+local isTweening = false 
+
+-- Processes the next item in the queue if not already busy.
+local function Tween()
+    if not isTweening and #tokenPositionsQueue > 0 then
+        isTweening = true
+        
+        local hrp = ScriptHive.humanoidrootpart()
+        if hrp then
+            local targetPos = table.remove(tokenPositionsQueue, 1)
+
+            ScriptHive.noclip(true)
+
+            local distance = (hrp.Position - targetPos).Magnitude
+            local speed = 100 -- adjust to your liking
+            local tweenTime = distance / speed
+            
+            local tween = TweenService:Create(
+                hrp,
+                TweenInfo.new(tweenTime, Enum.EasingStyle.Linear),
+                {CFrame = CFrame.new(targetPos)}
+            )
+
+            tween:Play()
+            tween.Completed:Connect(function()
+                task.wait(0.5)
+                ScriptHive.noclip(false)
+                isTweening = false
+                Tween()
+            end)
+        else
+            isTweening = false
+        end
+    end
+end
+
+-------------- // MAIN // --------------
+
+ScriptHive["notify"] = function(title, description, duration)
+    pcall(function()
+        game.StarterGui:SetCore("SendNotification", {
+            Title = title;
+            Text = description;
+            Duration = duration;
+        })
+    end)
+end
+
+-- // Fluent Window
+local Window = Library:CreateWindow({
+    Title = "ScriptHive",
+    SubTitle = "Token Collector",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(560, 240),
+    Acrylic = true,
+    Theme = "Dark"
+})
+
+-- // Global table for user config
+getgenv().ScriptHive = {
+    toggles = {
+        Activate = false,
+    },
+    tokens = {
+        names = {
+            "Honey",        -- index [1]
+            "RoyalJelly"    -- index [2]
+        },
+        decals = {
+            "rbxassetid://1234567890",  -- index [1] => Honey
+            "rbxassetid://1471882621"   -- index [2] => RoyalJelly
+        }
+    },
+    selectedDecals = {}, 
+}
+
+local CollectiblesConnection
+
+local recognizedTokens = setmetatable({}, {__mode = "k"}) 
+
+local function ScanForTokens()
+    local collectiblesFolder = workspace:FindFirstChild("Collectibles")
+    if not collectiblesFolder then return end
+
+    for _, child in ipairs(collectiblesFolder:GetChildren()) do
+        if not recognizedTokens[child] then
+            local frontDecal = child:FindFirstChild("FrontDecal")
+            if frontDecal and frontDecal:IsA("Decal") then
+                local itemTexture = frontDecal.Texture
+                if table.find(getgenv().ScriptHive.selectedDecals, itemTexture) then
+                    recognizedTokens[child] = true
+                    table.insert(tokenPositionsQueue, child.Position)
+                end
+            end
+        end
+    end
+
+    Tween()
+end
+
+local function MainFunction()
+    -- If there's an old connection, disconnect it
+    if CollectiblesConnection then
+        CollectiblesConnection:Disconnect()
+        CollectiblesConnection = nil
+    end
+
+    local collectiblesFolder = workspace:FindFirstChild("Collectibles")
+    if not collectiblesFolder then
+        ScriptHive.notify("ScriptHive", "No Collectibles folder found!", 5)
+        return
+    end
+
+    CollectiblesConnection = collectiblesFolder.ChildAdded:Connect(function(child)
+
+        task.wait(0.1) 
+
+        local frontDecal = child:FindFirstChild("FrontDecal")
+
+        if frontDecal and frontDecal:IsA("Decal") then
+            local itemTexture = frontDecal.Texture
+            if table.find(getgenv().ScriptHive.selectedDecals, itemTexture) and not recognizedTokens[child] then
+                recognizedTokens[child] = true
+                table.insert(tokenPositionsQueue, child.Position)
+                Tween()
+            end
+        end
+    end)
+
+    ScanForTokens()
+
+end
+
+-------------- // FLUENT UI // --------------
+
+local Tabs = {
+    Main = Window:CreateTab({ Title = "Main", Icon = "lucide-joystick" }),
+}
+
+Tabs.Main:CreateToggle("Activate", {
+    Title = "Activate",
+    Default = getgenv().ScriptHive.toggles.Activate,
+    Callback = function(state)
+        getgenv().ScriptHive.toggles.Activate = state
+        if state then
+            MainFunction()
+        else
+            -- Optionally clear the queue & recognized tokens if turning off
+            table.clear(tokenPositionsQueue)
+            table.clear(recognizedTokens)
+            if CollectiblesConnection then
+                CollectiblesConnection:Disconnect()
+                CollectiblesConnection = nil
+            end
+        end
+    end
+})
+
+-- // Dropdown for selecting tokens
+Tabs.Main:CreateDropdown("Dropdown", {
+    Title = "Tokens",
+    Values = getgenv().ScriptHive.tokens.names,
+    Multi = true,
+    Default = nil,
+    Callback = function(selectedTable)
+
+        table.clear(getgenv().ScriptHive.selectedDecals)
+        
+        for name, isSelected in pairs(selectedTable) do
+            if isSelected then
+                local index = table.find(getgenv().ScriptHive.tokens.names, name)
+                if index then
+                    local decal = getgenv().ScriptHive.tokens.decals[index]
+                    print(("Selected: %s => %s"):format(name, decal))
+                    table.insert(getgenv().ScriptHive.selectedDecals, decal)
+                end
+            end
+        end
+
+        if getgenv().ScriptHive.toggles.Activate then
+            table.clear(recognizedTokens)
+            ScanForTokens()
+        end
+    end
+})
