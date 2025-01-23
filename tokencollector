@@ -99,6 +99,7 @@ getgenv().ScriptHive = {
     },
     tokens = {
         names = {
+            "Ticket",
             "Honey",
             "Royal Jelly",
             "Star Jelly"
@@ -109,6 +110,7 @@ getgenv().ScriptHive = {
             "Sunflower Seed"
         },
         decals = {
+            "rbxassetid://1674871631",
             "rbxassetid://1472135114",
             "rbxassetid://1471882621",
             "rbxassetid://2319943273",
