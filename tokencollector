@@ -16,12 +16,7 @@ local Library = loadstring(game:HttpGetAsync("https://github.com/ActualMasterOog
 local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
 local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
 
--- // ScriptHive table
 local ScriptHive = {}
-
--- Provide 'vitaly' so the tween function can reference 'vitaly.humanoidrootpart()'
--- without changing the function body itself.
-local vitaly = ScriptHive
 
 -------------- // FUNCTIONS // --------------
 
@@ -52,25 +47,18 @@ ScriptHive["noclip"] = function(state)
     end
 end
 
--------------- // TWEENING // --------------
-
--- We won't do an immediate tween per token. Instead, we keep a loop below
--- that picks the closest token from recognizedTokens and goes there.
-
 ScriptHive["tween"] = function(speed, pos)
     if ScriptHive.humanoidrootpart() then
         if typeof(pos) == "CFrame" then pos = pos.p end
-        local speed = (vitaly.humanoidrootpart().Position - pos).Magnitude / speed
+        local speed = (ScriptHive.humanoidrootpart().Position - pos).Magnitude / speed
         game:GetService("TweenService"):Create(
-            vitaly.humanoidrootpart(),
+            ScriptHive.humanoidrootpart(),
             TweenInfo.new(speed, Enum.EasingStyle.Linear),
             {CFrame = CFrame.new(pos)}
         ):Play()
         task.wait(speed)
     end
 end
-
--------------- // MAIN // --------------
 
 ScriptHive["notify"] = function(title, description, duration)
     pcall(function()
@@ -82,9 +70,10 @@ ScriptHive["notify"] = function(title, description, duration)
     end)
 end
 
--- // Fluent Window
+-------------- // MAIN // --------------
+
 local Window = Library:CreateWindow({
-    Title = "ScriptHive",
+    Title = "Xenus Hub",
     SubTitle = "Token Collector",
     TabWidth = 160,
     Size = UDim2.fromOffset(560, 240),
@@ -92,7 +81,6 @@ local Window = Library:CreateWindow({
     Theme = "Dark"
 })
 
--- // Global table for user config
 getgenv().ScriptHive = {
     toggles = {
         Activate = false,
@@ -102,39 +90,27 @@ getgenv().ScriptHive = {
             "Ticket",
             "Honey",
             "Royal Jelly",
-            "Star Jelly"
-            "Snowflake",
-            "Strawberry",
-            "Blueberry",
-            "Pineapple",
-            "Sunflower Seed"
+            "Star Jelly",
+            "Snowflake"
         },
         decals = {
             "rbxassetid://1674871631",
             "rbxassetid://1472135114",
             "rbxassetid://1471882621",
             "rbxassetid://2319943273",
-            "rbxassetid://6087969886",
-            "rbxassetid://1952740625",
-            "rbxassetid://2028453814",
-            "rbxassetid://1952796050",
-            "rbxassetid://1952682426"
+            "rbxassetid://6087969886"
         }
     },
     selectedDecals = {},
-    -- We'll store our tween speed here (updated by the slider).
-    tweenspeed = 64
+    tweenspeed = 128
 }
 
--- We'll store newly recognized tokens in a dictionary:
 local recognizedTokens = setmetatable({}, {__mode = "k"})
 
 local CollectiblesConnection
 
--- When collecting, we don't want to start multiple loops
 local isCollecting = false
 
--- Finds the closest valid token in recognizedTokens
 local function getClosestToken()
     local hrp = ScriptHive.humanoidrootpart()
     if not hrp then return nil end
@@ -143,8 +119,6 @@ local function getClosestToken()
     local closestChild = nil
 
     for child in pairs(recognizedTokens) do
-        -- Make sure it's still in workspace (not destroyed)
-        -- and has the frontDecal
         if child and child.Parent then
             local frontDecal = child:FindFirstChild("FrontDecal")
             if frontDecal and frontDecal:IsA("Decal") then
@@ -154,11 +128,9 @@ local function getClosestToken()
                     closestChild = child
                 end
             else
-                -- If no decal or child is invalid, remove it
                 recognizedTokens[child] = nil
             end
         else
-            -- Child gone from workspace
             recognizedTokens[child] = nil
         end
     end
@@ -166,37 +138,31 @@ local function getClosestToken()
     return closestChild
 end
 
--- Loops through recognizedTokens, always going to the nearest
 local function CollectTokensLoop()
     isCollecting = true
     while true do
         local child = getClosestToken()
         if not child then 
-            -- No tokens left
             break 
         end
 
-        -- Attempt the actual tween
         if child.Parent then
             ScriptHive.noclip(true)
             ScriptHive.tween(getgenv().ScriptHive.tweenspeed, child.Position)
             ScriptHive.noclip(false)
+            task.wait(0.5)
         end
-
-        -- Remove from recognized tokens after we move
         recognizedTokens[child] = nil
     end
     isCollecting = false
 end
 
--- Call this whenever a new token is added to recognizedTokens
 local function TryCollectTokens()
     if not isCollecting then
         CollectTokensLoop()
     end
 end
 
--- (Optional) function that scans existing tokens once
 local function ScanForTokens()
     local collectiblesFolder = workspace:FindFirstChild("Collectibles")
     if not collectiblesFolder then return end
@@ -212,7 +178,6 @@ local function ScanForTokens()
             end
         end
     end
-    -- After scanning, try collecting in the order of closeness
     TryCollectTokens()
 end
 
@@ -235,14 +200,10 @@ local function MainFunction()
             local itemTexture = frontDecal.Texture
             if table.find(getgenv().ScriptHive.selectedDecals, itemTexture) then
                 recognizedTokens[child] = true
-                -- We added a token, so try collecting the nearest
                 TryCollectTokens()
             end
         end
     end)
-
-    -- If you want to also collect existing tokens, uncomment:
-    -- ScanForTokens()
 end
 
 -------------- // FLUENT UI // --------------
@@ -271,9 +232,9 @@ Tabs.Main:CreateToggle("Activate", {
 
 Tabs.Settings:AddSlider("Tween Speed", {
     Title = "Tween Speed",
-    Min = 16,
-    Max = 256,
-    Rounding = 1,
+    Min = 10,
+    Max = 250,
+    Rounding = 10,
     Default = getgenv().ScriptHive.tweenspeed,
     Callback = function(value)
         getgenv().ScriptHive.tweenspeed = value
@@ -302,9 +263,6 @@ Tabs.Main:CreateDropdown("Dropdown", {
 
         if getgenv().ScriptHive.toggles.Activate then
             table.clear(recognizedTokens)
-            -- If you also want to gather existing tokens in the new selection,
-            -- uncomment this:
-            -- ScanForTokens()
         end
     end
 })
